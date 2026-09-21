@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../models/player.dart';
+import 'bidding_screen.dart';
 
 class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key});
@@ -186,8 +188,23 @@ class _SetupScreenState extends State<SetupScreen> {
                     ),
                   );
 
-                  // TODO:
-                  // Navigate to bidding_screen.dart
+                  List<Player> players = [];
+
+                  for (int i = 0; i < 4; i++) {
+                    players.add(
+                      Player(
+                        name: nameControllers[i].text.trim(),
+                        pin: pinControllers[i].text.trim(),
+                      ),
+                    );
+                  }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BiddingScreen(players: players),
+                    ),
+                  );
                 },
                 child: const Text(
                   "Start Match",
