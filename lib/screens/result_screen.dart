@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 
+import 'bidding_screen.dart';
 import '../models/player.dart';
 import 'scoreboard_screen.dart';
 
 class ResultScreen extends StatefulWidget {
   final List<Player> players;
+  final bool isFirstRound;
 
-  const ResultScreen({super.key, required this.players});
+  const ResultScreen({
+    super.key,
+    required this.players,
+    this.isFirstRound = false,
+  });
 
   @override
   State<ResultScreen> createState() => _ResultScreenState();
@@ -36,6 +42,9 @@ class _ResultScreenState extends State<ResultScreen> {
     super.dispose();
   }
 
+  // ==========================================
+  // CALCULATE / SAVE ROUND
+  // ==========================================
   void calculateScore() {
     if (scoreCalculated) {
       return;
@@ -43,15 +52,18 @@ class _ResultScreenState extends State<ResultScreen> {
 
     int totalWon = 0;
 
-    // Check all entered values first.
+    // ==========================================
+    // VALIDATE INPUT
+    // ==========================================
     for (int i = 0; i < widget.players.length; i++) {
-      int? won = int.tryParse(trickControllers[i].text.trim());
+      final won = int.tryParse(trickControllers[i].text.trim());
 
       if (won == null || won < 0 || won > 13) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "Enter a valid trick number for ${widget.players[i].name}",
+              "Enter a valid card number for "
+              "${widget.players[i].name}",
             ),
           ),
         );
@@ -61,43 +73,73 @@ class _ResultScreenState extends State<ResultScreen> {
       totalWon += won;
     }
 
-    // Exactly 13 tricks must be distributed.
+    // ==========================================
+    // TOTAL MUST BE 13
+    // ==========================================
     if (totalWon != 13) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Total tricks must be 13. Current total: $totalWon"),
+          content: Text("Total cards must be 13. Current total: $totalWon"),
         ),
       );
       return;
     }
 
-    // Calculate score for each player.
-    for (int i = 0; i < widget.players.length; i++) {
-      int won = int.parse(trickControllers[i].text.trim());
+    // ==========================================
+    // ROUND 1
+    // ==========================================
+    if (widget.isFirstRound) {
+      for (int i = 0; i < widget.players.length; i++) {
+        final won = int.parse(trickControllers[i].text.trim());
 
-      int call = widget.players[i].call!;
+        widget.players[i].tricksWon = won;
 
-      widget.players[i].tricksWon = won;
+        // R1 has no call and no score.
+        // Save the cards collected as R1.
+        widget.players[i].roundTricks.add(won);
 
-      // Save round information.
-      widget.players[i].roundTricks.add(won);
-      widget.players[i].roundCalls.add(call);
-
-      double score;
-
-      // Custom Call Bridge scoring rule:
-      //
-      // Call N:
-      // N, N+1 or N+2 tricks = +N
-      // Anything below N or above N+2 = -N
-      if (won >= call && won <= call + 2) {
-        score = call.toDouble();
-      } else {
-        score = -call.toDouble();
+        // R1 becomes the first score
+        widget.players[i].scoreHistory.add(won);
       }
 
-      widget.players[i].totalScore += score;
-      widget.players[i].roundScores.add(score);
+      setState(() {
+        scoreCalculated = true;
+      });
+
+      showFirstRoundCompleteDialog();
+
+      return;
+    }
+
+    // ==========================================
+    // R2, R3, R4...
+    // ==========================================
+    for (int i = 0; i < widget.players.length; i++) {
+      final player = widget.players[i];
+
+      final won = int.parse(trickControllers[i].text.trim());
+
+      // The call was already saved in BiddingScreen.
+      final call = player.call!;
+
+      player.tricksWon = won;
+
+      // Save cards collected.
+      player.roundTricks.add(won);
+
+      int previousScore = player.scoreHistory.last;
+
+      bool success = won >= call && won <= call + 2;
+
+      int newScore;
+
+      if (success) {
+        newScore = previousScore + call;
+      } else {
+        newScore = previousScore - call;
+      }
+
+      player.scoreHistory.add(newScore);
     }
 
     setState(() {
@@ -107,10 +149,54 @@ class _ResultScreenState extends State<ResultScreen> {
     showScoreDialog();
   }
 
+  // ==========================================
+  // AFTER R1
+  // ==========================================
+  void showFirstRoundCompleteDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Round 1 Complete"),
+          content: const Text(
+            "Round 1 has been saved.\n\n"
+            "Now the players will enter their calls "
+            "for Round 2.",
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+
+                for (final player in widget.players) {
+                  player.call = null;
+                  player.tricksWon = 0;
+                }
+
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BiddingScreen(players: widget.players),
+                  ),
+                );
+              },
+              child: const Text("Continue"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // AFTER R2/R3/R4...
+  // ==========================================
   void showScoreDialog() {
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text("Round Complete"),
           content: Column(
@@ -123,12 +209,12 @@ class _ResultScreenState extends State<ResultScreen> {
                     children: [
                       Expanded(child: Text(player.name)),
                       Text(
-                        player.roundScores.last >= 0
-                            ? "+${player.roundScores.last.toStringAsFixed(0)}"
-                            : player.roundScores.last.toStringAsFixed(0),
+                        player.scoreHistory.last >= 0
+                            ? "+${player.scoreHistory.last.toStringAsFixed(0)}"
+                            : player.scoreHistory.last.toStringAsFixed(0),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: player.roundScores.last >= 0
+                          color: player.scoreHistory.last >= 0
                               ? Colors.green
                               : Colors.red,
                         ),
@@ -141,7 +227,7 @@ class _ResultScreenState extends State<ResultScreen> {
           actions: [
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
               child: const Text("OK"),
             ),
@@ -155,7 +241,7 @@ class _ResultScreenState extends State<ResultScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Round Result"),
+        title: Text(widget.isFirstRound ? "Round 1" : "Round Result"),
         centerTitle: true,
         actions: [
           IconButton(
@@ -172,20 +258,23 @@ class _ResultScreenState extends State<ResultScreen> {
           ),
         ],
       ),
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Text(
-              "Enter the number of tricks collected",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              widget.isFirstRound
+                  ? "Enter the cards collected by each player"
+                  : "Enter the cards collected",
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
 
             const SizedBox(height: 8),
 
             const Text(
-              "Total tricks must be exactly 13.",
+              "All players' cards must total exactly 13.",
               style: TextStyle(color: Colors.grey),
             ),
 
@@ -217,10 +306,11 @@ class _ResultScreenState extends State<ResultScreen> {
 
                                 const SizedBox(height: 6),
 
-                                Text(
-                                  "Call: ${player.call}",
-                                  style: const TextStyle(fontSize: 16),
-                                ),
+                                if (!widget.isFirstRound)
+                                  Text(
+                                    "Call: ${player.call}",
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
                               ],
                             ),
                           ),
@@ -233,7 +323,7 @@ class _ResultScreenState extends State<ResultScreen> {
                               keyboardType: TextInputType.number,
                               textAlign: TextAlign.center,
                               decoration: const InputDecoration(
-                                labelText: "Tricks",
+                                labelText: "Cards",
                                 hintText: "0–13",
                                 border: OutlineInputBorder(),
                               ),
@@ -255,8 +345,11 @@ class _ResultScreenState extends State<ResultScreen> {
               child: ElevatedButton(
                 onPressed: scoreCalculated ? null : calculateScore,
                 child: Text(
-                  scoreCalculated ? "Score Calculated" : "Calculate Score",
-                  style: const TextStyle(fontSize: 16),
+                  scoreCalculated
+                      ? (widget.isFirstRound
+                            ? "R1 Saved"
+                            : "R${widget.players.first.roundTricks.length} Calculated")
+                      : (widget.isFirstRound ? "Save R1" : "Calculate Round"),
                 ),
               ),
             ),

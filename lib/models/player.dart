@@ -2,18 +2,24 @@ class Player {
   String name;
   String pin;
 
+  // Current round call.
   int? call;
+
+  // Cards/tricks collected in the current round.
   int tricksWon = 0;
 
-  double totalScore = 0;
+  // Score earned in R2, R3, R4...
+  // R1 has no score.
+  List<int> scoreHistory = [];
 
-  // Score earned in each round.
-  List<double> roundScores = [];
-
-  // Call made in each round.
+  // Calls for R2, R3, R4...
   List<int> roundCalls = [];
 
-  // Number of tricks won in each round.
+  // Cards/tricks collected:
+  // roundTricks[0] = R1
+  // roundTricks[1] = R2
+  // roundTricks[2] = R3
+  // ...
   List<int> roundTricks = [];
 
   Player({required this.name, required this.pin, this.call});

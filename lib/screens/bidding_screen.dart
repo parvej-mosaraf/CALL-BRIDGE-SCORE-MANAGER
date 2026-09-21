@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../models/player.dart';
 import 'result_screen.dart';
+import 'scoreboard_screen.dart';
 
 class BiddingScreen extends StatefulWidget {
   final List<Player> players;
@@ -14,89 +16,117 @@ class BiddingScreen extends StatefulWidget {
 class _BiddingScreenState extends State<BiddingScreen> {
   bool callsRevealed = false;
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Hidden Bidding")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(
-              callsRevealed
-                  ? "Calls Revealed"
-                  : "${widget.players.where((player) => player.hasSubmittedCall).length}/4 Players Submitted",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  // Prevent saving the same calls more than once.
+  bool callsSaved = false;
+
+  // ==========================================
+  // CHECK WHETHER ALL PLAYERS SUBMITTED CALL
+  // ==========================================
+  bool get allCallsSubmitted {
+    return widget.players.every((player) => player.call != null);
+  }
+
+  // ==========================================
+  // ENTER CALL
+  // ==========================================
+  void enterCall(Player player) {
+    if (callsRevealed) {
+      return;
+    }
+
+    final pinController = TextEditingController();
+    final callController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text("Enter Call - ${player.name}"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: pinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                decoration: const InputDecoration(
+                  labelText: "PIN",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: callController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Call",
+                  hintText: "2 - 13",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
             ),
+            ElevatedButton(
+              onPressed: () {
+                // Check PIN.
+                if (pinController.text.trim() != player.pin) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Incorrect PIN")),
+                  );
+                  return;
+                }
 
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: widget.players.length,
-                itemBuilder: (context, index) {
-                  final player = widget.players[index];
+                final call = int.tryParse(callController.text.trim());
 
-                  return Card(
-                    child: ListTile(
-                      title: Text(player.name),
-
-                      trailing: callsRevealed
-                          ? Text(
-                              player.call?.toString() ?? "-",
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                          : Icon(
-                              player.hasSubmittedCall
-                                  ? Icons.lock
-                                  : Icons.lock_outline,
-                              size: 28,
-                            ),
-
-                      onTap: () {
-                        if (!callsRevealed) {
-                          verifyPinAndEnterCall(index);
-                        }
-                      },
+                // Check call.
+                if (call == null || call < 2 || call > 13) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Call must be between 2 and 13"),
                     ),
                   );
-                },
-              ),
-            ),
+                  return;
+                }
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: !callsRevealed
-                    ? (allPlayersSubmitted() ? revealCalls : null)
-                    : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                ResultScreen(players: widget.players),
-                          ),
-                        );
-                      },
-                child: Text(callsRevealed ? "Start Round" : "Reveal Calls"),
-              ),
+                setState(() {
+                  player.call = call;
+                });
+
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Submit"),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 
-  bool allPlayersSubmitted() {
-    return widget.players.every((player) => player.hasSubmittedCall);
-  }
-
+  // ==========================================
+  // REVEAL CALLS
+  // ==========================================
   void revealCalls() {
+    if (!allCallsSubmitted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("All 4 players must submit their calls first."),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text("Reveal Calls?"),
           content: const Text(
@@ -106,13 +136,24 @@ class _BiddingScreenState extends State<BiddingScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
               child: const Text("Cancel"),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
+
+                // ==========================================
+                // SAVE CALLS TO HISTORY
+                // ==========================================
+                if (!callsSaved) {
+                  for (final player in widget.players) {
+                    player.roundCalls.add(player.call!);
+                  }
+
+                  callsSaved = true;
+                }
 
                 setState(() {
                   callsRevealed = true;
@@ -126,97 +167,132 @@ class _BiddingScreenState extends State<BiddingScreen> {
     );
   }
 
-  void verifyPinAndEnterCall(int playerIndex) {
-    final pinController = TextEditingController();
+  // ==========================================
+  // START ROUND
+  // ==========================================
+  void startRound() {
+    if (!callsRevealed) {
+      return;
+    }
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(widget.players[playerIndex].name),
-          content: TextField(
-            controller: pinController,
-            keyboardType: TextInputType.number,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: "Enter PIN"),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (pinController.text == widget.players[playerIndex].pin) {
-                  Navigator.pop(context);
-
-                  enterCall(playerIndex);
-                } else {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text("Wrong PIN")));
-                }
-              },
-              child: const Text("Verify"),
-            ),
-          ],
-        );
-      },
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => ResultScreen(players: widget.players)),
     );
   }
 
-  void enterCall(int playerIndex) {
-    final callController = TextEditingController(
-      text: widget.players[playerIndex].call?.toString() ?? "",
-    );
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Call"),
+        centerTitle: true,
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(
-            widget.players[playerIndex].hasSubmittedCall
-                ? "Edit Call"
-                : "Enter Call",
+        // ==========================================
+        // SCOREBOARD BUTTON
+        // ==========================================
+        actions: [
+          IconButton(
+            tooltip: "Scoreboard",
+            icon: const Icon(Icons.table_chart),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ScoreboardScreen(players: widget.players),
+                ),
+              );
+            },
           ),
-          content: TextField(
-            controller: callController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(hintText: "1 - 13"),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Cancel"),
+        ],
+      ),
+
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Text(
+              "Enter Call",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            ElevatedButton(
-              onPressed: () {
-                int? value = int.tryParse(callController.text);
 
-                if (value == null || value < 2 || value > 13) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Call must be between 2 and 13"),
+            const SizedBox(height: 8),
+
+            Text(
+              callsRevealed
+                  ? "Calls have been revealed."
+                  : "Each player must enter their call.",
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 20),
+
+            // ==========================================
+            // PLAYER LIST
+            // ==========================================
+            Expanded(
+              child: ListView.builder(
+                itemCount: widget.players.length,
+                itemBuilder: (context, index) {
+                  final player = widget.players[index];
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: CircleAvatar(child: Text("${index + 1}")),
+
+                      title: Text(
+                        player.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+
+                      trailing: callsRevealed
+                          ? Text(
+                              "${player.call}",
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : Text(
+                              player.hasSubmittedCall
+                                  ? "Submitted"
+                                  : "Enter Call",
+                              style: TextStyle(
+                                color: player.hasSubmittedCall
+                                    ? Colors.green
+                                    : Colors.grey,
+                              ),
+                            ),
+
+                      onTap: callsRevealed
+                          ? null
+                          : () {
+                              enterCall(player);
+                            },
                     ),
                   );
-                  return;
-                }
+                },
+              ),
+            ),
 
-                setState(() {
-                  widget.players[playerIndex].call = value;
-                });
+            const SizedBox(height: 12),
 
-                Navigator.pop(context);
-              },
-              child: const Text("Save"),
+            // ==========================================
+            // REVEAL / START BUTTON
+            // ==========================================
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: callsRevealed ? startRound : revealCalls,
+                child: Text(callsRevealed ? "Start Round" : "Reveal Calls"),
+              ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }

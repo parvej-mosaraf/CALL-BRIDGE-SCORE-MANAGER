@@ -1,17 +1,96 @@
 import 'package:flutter/material.dart';
+
 import '../models/player.dart';
+import 'bidding_screen.dart';
 
 class ScoreboardScreen extends StatelessWidget {
   final List<Player> players;
 
   const ScoreboardScreen({super.key, required this.players});
 
+  // ==========================================
+  // START NEXT ROUND
+  // ==========================================
+  void startNextRound(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Start Next Round?"),
+          content: const Text(
+            "Previous rounds will be kept. "
+            "Players will enter new calls.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+
+                // Clear only current call/tricks.
+                // History remains untouched.
+                for (final player in players) {
+                  player.call = null;
+                  player.tricksWon = 0;
+                }
+
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BiddingScreen(players: players),
+                  ),
+                  (route) => false,
+                );
+              },
+              child: const Text("Start"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // END MATCH
+  // ==========================================
+  void endMatch(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("End Match?"),
+          content: const Text("Are you sure you want to end this match?"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+
+                Navigator.popUntil(context, (route) => route.isFirst);
+              },
+              child: const Text("End Match"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    int totalRounds = players.isEmpty ? 0 : players.first.roundScores.length;
-
     return Scaffold(
-      appBar: AppBar(title: const Text("Scoreboard")),
+      appBar: AppBar(title: const Text("Scoreboard"), centerTitle: true),
+
       body: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -27,12 +106,7 @@ class ScoreboardScreen extends StatelessWidget {
                     dataRowMaxHeight: 55,
 
                     columns: [
-                      const DataColumn(
-                        label: Text(
-                          "",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                      const DataColumn(label: Text("")),
 
                       for (final player in players)
                         DataColumn(
@@ -48,33 +122,47 @@ class ScoreboardScreen extends StatelessWidget {
                     ],
 
                     rows: [
-                      for (int round = 0; round < totalRounds; round++) ...[
+                      // ==========================================
+                      // R1
+                      // ==========================================
+                      if (players.isNotEmpty &&
+                          players.first.roundTricks.isNotEmpty)
                         DataRow(
                           cells: [
-                            DataCell(
+                            const DataCell(
                               Text(
-                                "R${round + 1}",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                "R1",
+                                style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),
 
                             for (final player in players)
                               DataCell(
                                 Text(
-                                  player.roundTricks[round].toString(),
-                                  style: TextStyle(
+                                  player.scoreHistory[0].toString(),
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: player.roundScores[round] >= 0
-                                        ? Colors.green
-                                        : Colors.red,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
                           ],
                         ),
 
+                      // ==========================================
+                      // CALL + RESULT
+                      // ==========================================
+                      for (
+                        int callIndex = 0;
+                        callIndex <
+                            (players.isEmpty
+                                ? 0
+                                : players.first.roundCalls.length);
+                        callIndex++
+                      ) ...[
+                        // --------------------------
+                        // CALL
+                        // --------------------------
                         DataRow(
                           cells: [
                             const DataCell(
@@ -86,35 +174,45 @@ class ScoreboardScreen extends StatelessWidget {
 
                             for (final player in players)
                               DataCell(
-                                Text(player.roundCalls[round].toString()),
+                                Text(player.roundCalls[callIndex].toString()),
                               ),
                           ],
                         ),
-                      ],
 
-                      DataRow(
-                        cells: [
-                          const DataCell(
-                            Text(
-                              "Total",
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-
-                          for (final player in players)
-                            DataCell(
-                              Text(
-                                player.totalScore.toStringAsFixed(0),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: player.totalScore >= 0
-                                      ? Colors.green
-                                      : Colors.red,
+                        // --------------------------
+                        // RESULT
+                        // --------------------------
+                        if (players.isNotEmpty &&
+                            players.first.roundTricks.length > callIndex + 1)
+                          DataRow(
+                            cells: [
+                              DataCell(
+                                Text(
+                                  "R${callIndex + 2}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
+
+                              for (final player in players)
+                                DataCell(
+                                  Text(
+                                    player.scoreHistory[callIndex + 1]
+                                        .toString(),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color:
+                                          player.scoreHistory[callIndex + 1] >
+                                              player.scoreHistory[callIndex]
+                                          ? Colors.green
+                                          : Colors.red,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                      ],
                     ],
                   ),
                 ),
@@ -123,15 +221,49 @@ class ScoreboardScreen extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Return to current round
+            // ==========================================
+            // BACK TO ROUND
+            // ==========================================
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
                 },
                 icon: const Icon(Icons.arrow_back),
                 label: const Text("Back to Round"),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // ==========================================
+            // NEXT ROUND
+            // ==========================================
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  startNextRound(context);
+                },
+                icon: const Icon(Icons.skip_next),
+                label: const Text("Next Round"),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // ==========================================
+            // END MATCH
+            // ==========================================
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () {
+                  endMatch(context);
+                },
+                icon: const Icon(Icons.stop_circle),
+                label: const Text("End Match"),
               ),
             ),
           ],

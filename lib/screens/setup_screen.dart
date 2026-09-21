@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
-import 'bidding_screen.dart';
+import 'result_screen.dart';
 
 class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key});
@@ -214,7 +214,8 @@ class _SetupScreenState extends State<SetupScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => BiddingScreen(players: players),
+                      builder: (_) =>
+                          ResultScreen(players: players, isFirstRound: true),
                     ),
                   );
                 },
