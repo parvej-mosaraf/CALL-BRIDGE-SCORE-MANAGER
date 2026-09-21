@@ -86,6 +86,99 @@ class ScoreboardScreen extends StatelessWidget {
     );
   }
 
+  void showAdminPanel(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Admin Mode"),
+          content: const Text(
+            "Admin Mode Unlocked.\n\n"
+            "Next step we will add:\n"
+            "• Edit scores\n"
+            "• Edit calls\n"
+            "• Delete last round\n"
+            "• Correct mistakes",
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text("OK"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void showAdminUnlockDialog(BuildContext context) {
+    final controllers = List.generate(
+      players.length,
+      (_) => TextEditingController(),
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Admin Verification"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < players.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: TextField(
+                      controller: controllers[i],
+                      keyboardType: TextInputType.number,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: "${players[i].name} PIN",
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                bool valid = true;
+
+                for (int i = 0; i < players.length; i++) {
+                  if (controllers[i].text.trim() != players[i].pin) {
+                    valid = false;
+                    break;
+                  }
+                }
+
+                if (!valid) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Incorrect PIN verification")),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+
+                showAdminPanel(context);
+              },
+              child: const Text("Unlock"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -248,6 +341,19 @@ class ScoreboardScreen extends StatelessWidget {
                 },
                 icon: const Icon(Icons.skip_next),
                 label: const Text("Next Round"),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  showAdminUnlockDialog(context);
+                },
+                icon: const Icon(Icons.admin_panel_settings),
+                label: const Text("Admin Mode"),
               ),
             ),
 
