@@ -25,6 +25,16 @@ class _SetupScreenState extends State<SetupScreen> {
   void savePlayer(int index) {
     String name = nameControllers[index].text.trim();
     String pin = pinControllers[index].text.trim();
+    for (int i = 0; i < 4; i++) {
+      if (i != index &&
+          playerSaved[i] &&
+          nameControllers[i].text.trim().toLowerCase() == name.toLowerCase()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Player name already used")),
+        );
+        return;
+      }
+    }
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -34,20 +44,22 @@ class _SetupScreenState extends State<SetupScreen> {
     }
 
     if (pin.length != 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("PIN must be exactly 4 digits")),
-      );
-      return;
-    }
-
-    for (int i = 0; i < 4; i++) {
-      if (i != index && playerSaved[i] && pinControllers[i].text == pin) {
+      if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("PIN already used by another player")),
+          const SnackBar(content: Text("PIN must contain 4 numbers")),
         );
         return;
       }
     }
+
+    // for (int i = 0; i < 4; i++) {
+    //   if (i != index && playerSaved[i] && pinControllers[i].text == pin) {
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       const SnackBar(content: Text("PIN already used by another player")),
+    //     );
+    //     return;
+    //   }
+    // }
 
     setState(() {
       playerSaved[index] = true;

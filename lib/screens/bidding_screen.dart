@@ -76,6 +76,90 @@ class _BiddingScreenState extends State<BiddingScreen> {
   }
 
   void verifyPinAndEnterCall(int playerIndex) {
-    // next step
+    final pinController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(widget.players[playerIndex].name),
+          content: TextField(
+            controller: pinController,
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: "Enter PIN"),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (pinController.text == widget.players[playerIndex].pin) {
+                  Navigator.pop(context);
+
+                  enterCall(playerIndex);
+                } else {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text("Wrong PIN")));
+                }
+              },
+              child: const Text("Verify"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void enterCall(int playerIndex) {
+    final callController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Enter Call"),
+          content: TextField(
+            controller: callController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(hintText: "1 - 13"),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                int? value = int.tryParse(callController.text);
+
+                if (value == null || value < 1 || value > 13) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Call must be between 1 and 13"),
+                    ),
+                  );
+                  return;
+                }
+
+                setState(() {
+                  widget.players[playerIndex].call = value;
+                });
+
+                Navigator.pop(context);
+              },
+              child: const Text("Save"),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
