@@ -240,8 +240,6 @@ class _BiddingScreenState extends State<BiddingScreen> {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     child: ListTile(
-                      leading: CircleAvatar(child: Text("${index + 1}")),
-
                       title: Text(
                         player.name,
                         style: const TextStyle(fontWeight: FontWeight.bold),
