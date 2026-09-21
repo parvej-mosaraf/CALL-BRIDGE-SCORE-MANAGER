@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
+import 'result_screen.dart';
 
 class BiddingScreen extends StatefulWidget {
   final List<Player> players;
@@ -71,7 +72,13 @@ class _BiddingScreenState extends State<BiddingScreen> {
                 onPressed: !callsRevealed
                     ? (allPlayersSubmitted() ? revealCalls : null)
                     : () {
-                        // We will navigate to the result screen here.
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ResultScreen(players: widget.players),
+                          ),
+                        );
                       },
                 child: Text(callsRevealed ? "Start Round" : "Reveal Calls"),
               ),
