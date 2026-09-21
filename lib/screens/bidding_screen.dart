@@ -21,6 +21,14 @@ class _BiddingScreenState extends State<BiddingScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            Text(
+              callsRevealed
+                  ? "Calls Revealed"
+                  : "${widget.players.where((player) => player.hasSubmittedCall).length}/4 Players Submitted",
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 16),
             Expanded(
               child: ListView.builder(
                 itemCount: widget.players.length,
@@ -39,7 +47,12 @@ class _BiddingScreenState extends State<BiddingScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                             )
-                          : const Icon(Icons.lock, size: 28),
+                          : Icon(
+                              player.hasSubmittedCall
+                                  ? Icons.lock
+                                  : Icons.lock_outline,
+                              size: 28,
+                            ),
 
                       onTap: () {
                         if (!callsRevealed) {
@@ -55,8 +68,12 @@ class _BiddingScreenState extends State<BiddingScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: allPlayersSubmitted() ? revealCalls : null,
-                child: const Text("Reveal Calls"),
+                onPressed: !callsRevealed
+                    ? (allPlayersSubmitted() ? revealCalls : null)
+                    : () {
+                        // We will navigate to the result screen here.
+                      },
+                child: Text(callsRevealed ? "Start Round" : "Reveal Calls"),
               ),
             ),
           ],
@@ -70,9 +87,36 @@ class _BiddingScreenState extends State<BiddingScreen> {
   }
 
   void revealCalls() {
-    setState(() {
-      callsRevealed = true;
-    });
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Reveal Calls?"),
+          content: const Text(
+            "All 4 players have submitted their calls.\n\n"
+            "Once the calls are revealed, they cannot be changed.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+
+                setState(() {
+                  callsRevealed = true;
+                });
+              },
+              child: const Text("Reveal"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void verifyPinAndEnterCall(int playerIndex) {
@@ -117,13 +161,19 @@ class _BiddingScreenState extends State<BiddingScreen> {
   }
 
   void enterCall(int playerIndex) {
-    final callController = TextEditingController();
+    final callController = TextEditingController(
+      text: widget.players[playerIndex].call?.toString() ?? "",
+    );
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Enter Call"),
+          title: Text(
+            widget.players[playerIndex].hasSubmittedCall
+                ? "Edit Call"
+                : "Enter Call",
+          ),
           content: TextField(
             controller: callController,
             keyboardType: TextInputType.number,
@@ -140,10 +190,10 @@ class _BiddingScreenState extends State<BiddingScreen> {
               onPressed: () {
                 int? value = int.tryParse(callController.text);
 
-                if (value == null || value < 1 || value > 13) {
+                if (value == null || value < 2 || value > 13) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("Call must be between 1 and 13"),
+                      content: Text("Call must be between 2 and 13"),
                     ),
                   );
                   return;
