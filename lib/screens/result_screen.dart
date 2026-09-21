@@ -11,6 +11,7 @@ class ResultScreen extends StatefulWidget {
 }
 
 class _ResultScreenState extends State<ResultScreen> {
+  bool scoreCalculated = false;
   late List<TextEditingController> trickControllers;
 
   @override
@@ -96,6 +97,85 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   void calculateScores() {
-    // next step
+    if (scoreCalculated) {
+      return;
+    }
+    int totalWon = 0;
+    for (int i = 0; i < widget.players.length; i++) {
+      int? won = int.tryParse(trickControllers[i].text);
+
+      if (won == null || won < 0 || won > 13) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Invalid tricks won for ${widget.players[i].name}"),
+          ),
+        );
+
+        return;
+      }
+
+      widget.players[i].tricksWon = won;
+
+      totalWon += won;
+
+      int call = widget.players[i].call!;
+
+      if (won >= call && won <= call + 2) {
+        double score = call.toDouble();
+
+        widget.players[i].totalScore += score;
+
+        widget.players[i].roundScores.add(score);
+      } else {
+        double score = -call.toDouble();
+
+        widget.players[i].totalScore += score;
+
+        widget.players[i].roundScores.add(score);
+      }
+    }
+    if (totalWon != 13) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Total tricks must be 13. Current total: $totalWon"),
+        ),
+      );
+      return;
+    }
+    scoreCalculated = true;
+    showScoreDialog();
+  }
+
+  void showScoreDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Round Score"),
+
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: widget.players.map((player) {
+                return ListTile(
+                  title: Text(player.name),
+                  trailing: Text(player.totalScore.toStringAsFixed(1)),
+                );
+              }).toList(),
+            ),
+          ),
+
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("OK"),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
